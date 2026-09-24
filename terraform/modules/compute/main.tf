@@ -33,9 +33,14 @@ variable "pg_host" {
   type = string
 }
 
-variable "pg_password" {
-  type      = string
-  sensitive = true
+variable "pg_password_secret_id" {
+  description = "OCID of the Vault secret holding the PostgreSQL password"
+  type        = string
+}
+
+variable "grafana_admin_password_secret_id" {
+  description = "OCID of the Vault secret holding the initial Grafana admin password"
+  type        = string
 }
 
 variable "tenancy_ocid" {
@@ -84,11 +89,13 @@ resource "oci_core_instance" "etl" {
 
   metadata = {
     ssh_authorized_keys = var.ssh_public_key
+    # Only secret OCIDs go into user_data; the values are fetched at boot.
     user_data = base64encode(templatefile("${path.module}/cloud-init.yaml", {
-      pg_host        = var.pg_host
-      pg_password    = var.pg_password
-      tenancy_ocid   = var.tenancy_ocid
-      region         = var.region
+      pg_host                          = var.pg_host
+      pg_password_secret_id            = var.pg_password_secret_id
+      grafana_admin_password_secret_id = var.grafana_admin_password_secret_id
+      tenancy_ocid                     = var.tenancy_ocid
+      region                           = var.region
     }))
   }
 

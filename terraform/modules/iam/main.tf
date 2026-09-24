@@ -10,14 +10,26 @@ variable "project_name" {
   type = string
 }
 
+variable "instance_id" {
+  description = "OCID of the ETL compute instance; the dynamic group matches only this instance"
+  type        = string
+}
+
+variable "secret_ids" {
+  description = "OCIDs of the Vault secrets the ETL instance may read"
+  type        = list(string)
+}
+
 # --- Dynamic Group ---
-# Matches compute instances tagged with the project name
+# Matches the ETL instance by OCID. Freeform tags are not access-controlled in
+# OCI, so a tag-based rule would let anyone who can tag an instance join the
+# group and inherit its permissions.
 
 resource "oci_identity_dynamic_group" "finops_etl" {
   compartment_id = var.tenancy_ocid
   name           = "${var.project_name}-etl-dynamic-group"
   description    = "Dynamic group for OCI FinOps ETL compute instances"
-  matching_rule  = "All {tag.freeformTags.project.value = '${var.project_name}', tag.freeformTags.role.value = 'etl-grafana'}"
+  matching_rule  = "All {instance.id = '${var.instance_id}'}"
 }
 
 # --- IAM Policies ---
@@ -38,6 +50,15 @@ resource "oci_identity_policy" "finops_notifications" {
   description    = "Allow FinOps ETL to publish anomaly alerts via ONS"
   statements = [
     "Allow dynamic-group ${oci_identity_dynamic_group.finops_etl.name} to use ons-topics in compartment id ${var.compartment_id}",
+  ]
+}
+
+resource "oci_identity_policy" "finops_secrets" {
+  compartment_id = var.compartment_id
+  name           = "${var.project_name}-secrets-policy"
+  description    = "Allow FinOps ETL to read its own Vault secrets at boot"
+  statements = [
+    "Allow dynamic-group ${oci_identity_dynamic_group.finops_etl.name} to read secret-bundles in compartment id ${var.compartment_id} where any {${join(", ", [for id in var.secret_ids : "target.secret.id = '${id}'"])}}",
   ]
 }
 

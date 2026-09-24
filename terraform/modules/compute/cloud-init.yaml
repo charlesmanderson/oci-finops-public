@@ -7,6 +7,33 @@ packages:
   - python3.11-pip
   - git
 
+write_files:
+  # Prints one OCI Vault secret, authenticating as this instance. Retries for
+  # up to 15 minutes: the dynamic group and policy granting access are created
+  # after the instance, and IAM changes take a few minutes to propagate.
+  - path: /usr/local/sbin/oci-finops-fetch-secret
+    permissions: "0700"
+    content: |
+      #!/usr/bin/python3.11
+      import base64
+      import sys
+      import time
+
+      import oci
+
+      secret_id = sys.argv[1]
+      for attempt in range(1, 31):
+          try:
+              signer = oci.auth.signers.InstancePrincipalsSecurityTokenSigner()
+              client = oci.secrets.SecretsClient(config={}, signer=signer)
+              bundle = client.get_secret_bundle(secret_id).data
+              sys.stdout.write(base64.b64decode(bundle.secret_bundle_content.content).decode())
+              sys.exit(0)
+          except Exception as exc:
+              print(f"secret fetch attempt {attempt} failed: {exc}", file=sys.stderr)
+              time.sleep(30)
+      sys.exit(1)
+
 runcmd:
   # Enable and start Docker
   - systemctl enable docker
@@ -21,24 +48,30 @@ runcmd:
   - mkdir -p /opt/oci-finops
   - chown opc:opc /opt/oci-finops
 
-  # Write environment file
+  # Install Python dependencies (the oci SDK is also needed to fetch secrets)
+  - pip3.11 install oci psycopg2-binary python-dotenv schedule
+
+  # Write environment file. The password comes from OCI Vault, never from
+  # instance metadata; stop here rather than start without it.
   - |
-    cat > /opt/oci-finops/.env << 'ENVEOF'
+    PG_PASSWORD="$(/usr/local/sbin/oci-finops-fetch-secret ${pg_password_secret_id})" || exit 1
+    (
+      umask 077
+      cat > /opt/oci-finops/.env << ENVEOF
     OCI_TENANCY_OCID=${tenancy_ocid}
     OCI_REGION=${region}
     PG_HOST=${pg_host}
     PG_PORT=5432
     PG_DATABASE=oci_finops
     PG_USER=finops
-    PG_PASSWORD=${pg_password}
+    PG_PASSWORD=$PG_PASSWORD
     ETL_BATCH_SIZE=10000
     ETL_TEMP_DIR=/tmp/oci-finops
     ENVEOF
+    )
+    unset PG_PASSWORD
   - chown opc:opc /opt/oci-finops/.env
   - chmod 600 /opt/oci-finops/.env
-
-  # Install Python dependencies
-  - pip3.11 install oci psycopg2-binary python-dotenv schedule
 
   # Set up cron for ETL (every 6 hours)
   - echo "0 */6 * * * opc cd /opt/oci-finops && /usr/bin/python3.11 -m etl.pipeline >> /var/log/oci-finops-etl.log 2>&1" > /etc/cron.d/oci-finops-etl
@@ -46,9 +79,16 @@ runcmd:
   # Set up cron for anomaly detection (daily at 7am)
   - echo "0 7 * * * opc cd /opt/oci-finops && /usr/bin/python3.11 -m anomaly.runner >> /var/log/oci-finops-anomaly.log 2>&1" > /etc/cron.d/oci-finops-anomaly
 
-  # Open firewall for Grafana
+  # Open the host firewall for Grafana. The VCN security list still blocks
+  # port 3000 unless grafana_allowed_cidrs is set.
   - firewall-cmd --permanent --add-port=3000/tcp
   - firewall-cmd --reload
+
+  # Fetch the Grafana admin password into a file readable only by the Grafana
+  # container user (uid 472), so it never appears in the container's env.
+  - mkdir -p -m 700 /opt/oci-finops/secrets
+  - ( umask 077; /usr/local/sbin/oci-finops-fetch-secret ${grafana_admin_password_secret_id} > /opt/oci-finops/secrets/grafana_admin_password ) || exit 1
+  - chown 472:0 /opt/oci-finops/secrets/grafana_admin_password
 
   # Pull and start Grafana container
   - |
@@ -56,6 +96,7 @@ runcmd:
       --name grafana \
       --restart unless-stopped \
       -p 3000:3000 \
-      -e GF_SECURITY_ADMIN_PASSWORD=admin \
+      -v /opt/oci-finops/secrets/grafana_admin_password:/run/secrets/grafana_admin_password:ro,Z \
+      -e GF_SECURITY_ADMIN_PASSWORD__FILE=/run/secrets/grafana_admin_password \
       -e GF_USERS_ALLOW_SIGN_UP=false \
       grafana/grafana-oss:latest

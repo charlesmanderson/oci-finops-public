@@ -10,6 +10,12 @@ variable "region" {
   type = string
 }
 
+variable "grafana_allowed_cidrs" {
+  description = "CIDR blocks allowed to reach Grafana on port 3000; empty keeps it private"
+  type        = list(string)
+  default     = []
+}
+
 variable "vcn_cidr" {
   type    = string
   default = "10.0.0.0/16"
@@ -97,6 +103,19 @@ resource "oci_core_security_list" "public" {
     tcp_options {
       min = 443
       max = 443
+    }
+  }
+
+  # Allow Grafana only from explicitly listed CIDRs
+  dynamic "ingress_security_rules" {
+    for_each = var.grafana_allowed_cidrs
+    content {
+      protocol = "6"
+      source   = ingress_security_rules.value
+      tcp_options {
+        min = 3000
+        max = 3000
+      }
     }
   }
 

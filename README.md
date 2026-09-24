@@ -94,6 +94,10 @@ oci-finops/
 
 ## Deploying to OCI
 
+Prerequisite: an existing OCI Vault and master encryption key. Set `vault_id`
+and `vault_key_id` in `terraform.tfvars`; the PostgreSQL and Grafana passwords
+are stored there as secrets and fetched by the VM at boot.
+
 ```bash
 cd terraform
 cp terraform.tfvars.example terraform.tfvars
@@ -108,8 +112,13 @@ This provisions:
 - VCN with public/private subnets
 - OCI PostgreSQL DB System (2 OCPU, 32GB)
 - Compute VM with Docker, cron-scheduled ETL, and Grafana
-- IAM dynamic group + policies for Instance Principal auth
+- IAM dynamic group (matching only the ETL VM) + policies for Instance Principal auth
+- Vault secrets for the PostgreSQL and Grafana passwords
 - ONS topic for anomaly alerts
+
+Grafana is not exposed to the internet by default. Reach it with
+`ssh -L 3000:localhost:3000 opc@<compute_public_ip>`, or list trusted CIDRs in
+`grafana_allowed_cidrs` to open port 3000 to them.
 
 ## Running Tests
 

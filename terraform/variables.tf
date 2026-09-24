@@ -25,6 +25,33 @@ variable "pg_admin_password" {
   sensitive   = true
 }
 
+variable "grafana_admin_password" {
+  description = "Initial Grafana admin password. Stored in OCI Vault and fetched at boot; never placed in instance metadata."
+  type        = string
+  sensitive   = true
+
+  validation {
+    condition     = length(var.grafana_admin_password) >= 12
+    error_message = "grafana_admin_password must be at least 12 characters."
+  }
+}
+
+variable "grafana_allowed_cidrs" {
+  description = "CIDR blocks allowed to reach Grafana on port 3000. Empty (the default) keeps Grafana private; reach it through an SSH tunnel."
+  type        = list(string)
+  default     = []
+}
+
+variable "vault_id" {
+  description = "OCID of an existing OCI Vault that will hold the PostgreSQL and Grafana passwords"
+  type        = string
+}
+
+variable "vault_key_id" {
+  description = "OCID of a master encryption key in vault_id, used to encrypt the secrets"
+  type        = string
+}
+
 variable "compute_shape" {
   description = "Shape for the compute instance"
   type        = string

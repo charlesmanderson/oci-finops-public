@@ -14,8 +14,8 @@ output "pg_endpoint" {
 }
 
 output "grafana_url" {
-  description = "Grafana dashboard URL"
-  value       = "http://${module.compute.public_ip}:3000"
+  description = "Grafana dashboard URL (via an SSH tunnel unless grafana_allowed_cidrs is set)"
+  value       = length(var.grafana_allowed_cidrs) > 0 ? "http://${module.compute.public_ip}:3000" : "http://localhost:3000 via ssh -L 3000:localhost:3000 opc@${module.compute.public_ip}"
 }
 
 output "dynamic_group_id" {

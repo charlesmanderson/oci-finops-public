@@ -1,9 +1,10 @@
 module "network" {
   source = "./modules/network"
 
-  compartment_id = var.compartment_id
-  project_name   = var.project_name
-  region         = var.region
+  compartment_id        = var.compartment_id
+  project_name          = var.project_name
+  region                = var.region
+  grafana_allowed_cidrs = var.grafana_allowed_cidrs
 }
 
 module "database" {
@@ -17,26 +18,43 @@ module "database" {
   db_storage_gb    = var.db_storage_gb
 }
 
+module "secrets" {
+  source = "./modules/secrets"
+
+  compartment_id         = var.compartment_id
+  project_name           = var.project_name
+  vault_id               = var.vault_id
+  vault_key_id           = var.vault_key_id
+  pg_password            = var.pg_admin_password
+  grafana_admin_password = var.grafana_admin_password
+}
+
 module "iam" {
   source = "./modules/iam"
 
   compartment_id = var.compartment_id
   tenancy_ocid   = var.tenancy_ocid
   project_name   = var.project_name
+  instance_id    = module.compute.instance_id
+  secret_ids = [
+    module.secrets.pg_password_secret_id,
+    module.secrets.grafana_admin_password_secret_id,
+  ]
 }
 
 module "compute" {
   source = "./modules/compute"
 
-  compartment_id    = var.compartment_id
-  project_name      = var.project_name
-  subnet_id         = module.network.public_subnet_id
-  ssh_public_key    = var.ssh_public_key
-  compute_shape     = var.compute_shape
-  compute_ocpus     = var.compute_ocpus
-  compute_memory_gb = var.compute_memory_gb
-  pg_host           = module.database.pg_endpoint
-  pg_password       = var.pg_admin_password
-  tenancy_ocid      = var.tenancy_ocid
-  region            = var.region
+  compartment_id                   = var.compartment_id
+  project_name                     = var.project_name
+  subnet_id                        = module.network.public_subnet_id
+  ssh_public_key                   = var.ssh_public_key
+  compute_shape                    = var.compute_shape
+  compute_ocpus                    = var.compute_ocpus
+  compute_memory_gb                = var.compute_memory_gb
+  pg_host                          = module.database.pg_endpoint
+  pg_password_secret_id            = module.secrets.pg_password_secret_id
+  grafana_admin_password_secret_id = module.secrets.grafana_admin_password_secret_id
+  tenancy_ocid                     = var.tenancy_ocid
+  region                           = var.region
 }

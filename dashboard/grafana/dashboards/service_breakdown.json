@@ -1,0 +1,270 @@
+{
+  "uid": "oci-finops-service-breakdown",
+  "title": "OCI FinOps - Service Breakdown",
+  "description": "Detailed per-service cost analysis with filtering and trends",
+  "tags": [
+    "oci",
+    "finops",
+    "service"
+  ],
+  "timezone": "browser",
+  "editable": true,
+  "graphTooltip": 1,
+  "refresh": "1h",
+  "schemaVersion": 39,
+  "templating": {
+    "list": [
+      {
+        "name": "tenancy",
+        "type": "query",
+        "label": "Tenancy",
+        "query": "SELECT alias FROM tenancies WHERE is_active ORDER BY alias",
+        "datasource": {
+          "type": "grafana-postgresql-datasource",
+          "uid": "oci-finops-pg"
+        },
+        "multi": true,
+        "includeAll": true,
+        "current": {
+          "text": "All",
+          "value": "$__all"
+        },
+        "allValue": ""
+      },
+      {
+        "name": "service",
+        "type": "query",
+        "query": "SELECT DISTINCT servicename FROM oci_finops_reports WHERE servicename IS NOT NULL ORDER BY servicename",
+        "datasource": {
+          "type": "grafana-postgresql-datasource",
+          "uid": "oci-finops-pg"
+        },
+        "multi": true,
+        "includeAll": true,
+        "current": {
+          "text": "All",
+          "value": "$__all"
+        },
+        "allValue": ""
+      },
+      {
+        "name": "region",
+        "type": "query",
+        "query": "SELECT DISTINCT region FROM oci_finops_reports WHERE region IS NOT NULL ORDER BY region",
+        "datasource": {
+          "type": "grafana-postgresql-datasource",
+          "uid": "oci-finops-pg"
+        },
+        "multi": true,
+        "includeAll": true,
+        "current": {
+          "text": "All",
+          "value": "$__all"
+        },
+        "allValue": ""
+      },
+      {
+        "name": "compartment",
+        "type": "query",
+        "query": "SELECT DISTINCT oci_compartmentname FROM oci_finops_reports WHERE oci_compartmentname IS NOT NULL ORDER BY oci_compartmentname",
+        "datasource": {
+          "type": "grafana-postgresql-datasource",
+          "uid": "oci-finops-pg"
+        },
+        "multi": true,
+        "includeAll": true,
+        "current": {
+          "text": "All",
+          "value": "$__all"
+        },
+        "allValue": ""
+      }
+    ]
+  },
+  "panels": [
+    {
+      "id": 1,
+      "title": "Service Cost Table",
+      "type": "table",
+      "gridPos": {
+        "h": 10,
+        "w": 24,
+        "x": 0,
+        "y": 0
+      },
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "oci-finops-pg"
+      },
+      "targets": [
+        {
+          "rawSql": "SELECT servicename AS \"Service\", servicecategory AS \"Category\", SUM(billedcost) AS \"Billed Cost\", SUM(effectivecost) AS \"Effective Cost\", SUM(listcost) AS \"List Cost\", ROUND((1 - SUM(effectivecost) / NULLIF(SUM(listcost), 0)) * 100, 1) AS \"Discount %\", COUNT(*) AS \"Line Items\" FROM oci_finops_reports WHERE billingperiodstart >= $__timeFrom()::timestamptz AND billingperiodstart < $__timeTo()::timestamptz AND ('\\${service:raw}' = '' OR servicename IN ($service)) AND ('\\${region:raw}' = '' OR region IN ($region)) AND ('\\${compartment:raw}' = '' OR oci_compartmentname IN ($compartment)) AND ('${tenancy:raw}' = '' OR tenancy_alias IN ($tenancy)) GROUP BY servicename, servicecategory ORDER BY \"Billed Cost\" DESC",
+          "format": "table",
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "oci-finops-pg"
+          }
+        }
+      ],
+      "fieldConfig": {
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Billed Cost"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "currency:financial:$"
+              },
+              {
+                "id": "decimals",
+                "value": 2
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Effective Cost"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "currency:financial:$"
+              },
+              {
+                "id": "decimals",
+                "value": 2
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "List Cost"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "currency:financial:$"
+              },
+              {
+                "id": "decimals",
+                "value": 2
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Discount %"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "percent"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": 2,
+      "title": "Service Cost Over Time (Stacked)",
+      "type": "timeseries",
+      "gridPos": {
+        "h": 10,
+        "w": 24,
+        "x": 0,
+        "y": 10
+      },
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "oci-finops-pg"
+      },
+      "targets": [
+        {
+          "rawSql": "SELECT cost_date AS time, servicename AS metric, total_billed_cost AS value FROM mv_daily_cost_by_service WHERE cost_date >= $__timeFrom()::date AND cost_date < $__timeTo()::date AND ('\\${service:raw}' = '' OR servicename IN ($service)) AND servicename IN (SELECT servicename FROM mv_daily_cost_by_service AND ('${tenancy:raw}' = '' OR tenancy_alias IN ($tenancy)) GROUP BY servicename ORDER BY SUM(total_billed_cost) DESC LIMIT 10) ORDER BY cost_date, servicename",
+          "format": "time_series",
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "oci-finops-pg"
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "currency:financial:$",
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 1,
+            "fillOpacity": 40,
+            "stacking": {
+              "mode": "normal"
+            }
+          },
+          "decimals": 2
+        }
+      },
+      "options": {
+        "tooltip": {
+          "mode": "multi"
+        },
+        "legend": {
+          "displayMode": "table",
+          "placement": "right",
+          "calcs": [
+            "sum",
+            "mean"
+          ]
+        }
+      }
+    },
+    {
+      "id": 3,
+      "title": "Unit Price Trends",
+      "type": "timeseries",
+      "gridPos": {
+        "h": 10,
+        "w": 24,
+        "x": 0,
+        "y": 20
+      },
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "oci-finops-pg"
+      },
+      "targets": [
+        {
+          "rawSql": "SELECT date_trunc('day', billingperiodstart)::date AS time, servicename AS metric, AVG(listunitprice) AS value FROM oci_finops_reports WHERE billingperiodstart >= $__timeFrom()::timestamptz AND billingperiodstart < $__timeTo()::timestamptz AND listunitprice IS NOT NULL AND listunitprice > 0 AND ('\\${service:raw}' = '' OR servicename IN ($service)) AND ('\\${region:raw}' = '' OR region IN ($region)) AND ('${tenancy:raw}' = '' OR tenancy_alias IN ($tenancy)) GROUP BY 1, 2 ORDER BY 1",
+          "format": "time_series",
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "oci-finops-pg"
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "currency:financial:$",
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 2,
+            "fillOpacity": 0
+          },
+          "decimals": 2
+        }
+      }
+    }
+  ],
+  "time": {
+    "from": "now-30d",
+    "to": "now"
+  }
+}

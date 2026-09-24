@@ -1,0 +1,22 @@
+apiVersion: 1
+
+datasources:
+  - name: OCI FinOps PostgreSQL
+    uid: oci-finops-pg
+    type: grafana-postgresql-datasource
+    orgId: 1
+    access: proxy
+    url: $GF_PG_HOST:$GF_PG_PORT
+    database: oci_finops
+    user: finops
+    isDefault: true
+    jsonData:
+      sslmode: $GF_PG_SSLMODE
+      maxOpenConns: 10
+      maxIdleConns: 5
+      connMaxLifetime: 14400
+      postgresVersion: 1600
+      timescaledb: false
+    secureJsonData:
+      password: $GF_PG_PASSWORD
+    editable: false

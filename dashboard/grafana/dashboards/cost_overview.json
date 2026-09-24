@@ -1,0 +1,413 @@
+{
+  "uid": "oci-finops-cost-overview",
+  "title": "OCI FinOps - Cost Overview",
+  "description": "High-level OCI cloud spend overview with trends and top services",
+  "tags": [
+    "oci",
+    "finops",
+    "cost"
+  ],
+  "timezone": "browser",
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "refresh": "1h",
+  "schemaVersion": 39,
+  "templating": {
+    "list": [
+      {
+        "name": "tenancy",
+        "type": "query",
+        "label": "Tenancy",
+        "query": "SELECT alias FROM tenancies WHERE is_active ORDER BY alias",
+        "datasource": {
+          "type": "grafana-postgresql-datasource",
+          "uid": "oci-finops-pg"
+        },
+        "multi": true,
+        "includeAll": true,
+        "current": {
+          "text": "All",
+          "value": "$__all"
+        },
+        "allValue": ""
+      },
+      {
+        "name": "region",
+        "type": "query",
+        "query": "SELECT DISTINCT region FROM oci_finops_reports WHERE region IS NOT NULL ORDER BY region",
+        "datasource": {
+          "type": "grafana-postgresql-datasource",
+          "uid": "oci-finops-pg"
+        },
+        "multi": true,
+        "includeAll": true,
+        "current": {
+          "text": "All",
+          "value": "$__all"
+        },
+        "allValue": ""
+      },
+      {
+        "name": "compartment",
+        "type": "query",
+        "query": "SELECT DISTINCT oci_compartmentname FROM oci_finops_reports WHERE oci_compartmentname IS NOT NULL ORDER BY oci_compartmentname",
+        "datasource": {
+          "type": "grafana-postgresql-datasource",
+          "uid": "oci-finops-pg"
+        },
+        "multi": true,
+        "includeAll": true,
+        "current": {
+          "text": "All",
+          "value": "$__all"
+        },
+        "allValue": ""
+      }
+    ]
+  },
+  "panels": [
+    {
+      "id": 1,
+      "title": "Current Month Spend",
+      "type": "stat",
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 0,
+        "y": 0
+      },
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "oci-finops-pg"
+      },
+      "targets": [
+        {
+          "rawSql": "SELECT SUM(billedcost) AS \"Current Month\" FROM oci_finops_reports WHERE billingperiodstart >= date_trunc('month', CURRENT_DATE) AND ('\\${region:raw}' = '' OR region IN ($region)) AND ('\\${compartment:raw}' = '' OR oci_compartmentname IN ($compartment)) AND ('${tenancy:raw}' = '' OR tenancy_alias IN ($tenancy))",
+          "format": "table",
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "oci-finops-pg"
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "currency:financial:$",
+          "thresholds": {
+            "steps": [
+              {
+                "value": null,
+                "color": "green"
+              }
+            ]
+          },
+          "decimals": 2
+        }
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        },
+        "colorMode": "value"
+      }
+    },
+    {
+      "id": 2,
+      "title": "Previous Month Spend",
+      "type": "stat",
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 6,
+        "y": 0
+      },
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "oci-finops-pg"
+      },
+      "targets": [
+        {
+          "rawSql": "SELECT SUM(billedcost) AS \"Previous Month\" FROM oci_finops_reports WHERE billingperiodstart >= date_trunc('month', CURRENT_DATE) - interval '1 month' AND billingperiodstart < date_trunc('month', CURRENT_DATE) AND ('\\${region:raw}' = '' OR region IN ($region)) AND ('\\${compartment:raw}' = '' OR oci_compartmentname IN ($compartment)) AND ('${tenancy:raw}' = '' OR tenancy_alias IN ($tenancy))",
+          "format": "table",
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "oci-finops-pg"
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "currency:financial:$",
+          "thresholds": {
+            "steps": [
+              {
+                "value": null,
+                "color": "blue"
+              }
+            ]
+          },
+          "decimals": 2
+        }
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        },
+        "colorMode": "value"
+      }
+    },
+    {
+      "id": 3,
+      "title": "Month-over-Month Change",
+      "type": "stat",
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 12,
+        "y": 0
+      },
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "oci-finops-pg"
+      },
+      "targets": [
+        {
+          "rawSql": "SELECT mom_change_pct AS \"MoM %\" FROM mv_monthly_cost_summary WHERE cost_month = date_trunc('month', CURRENT_DATE) AND ('${tenancy:raw}' = '' OR tenancy_alias IN ($tenancy)) LIMIT 1",
+          "format": "table",
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "oci-finops-pg"
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "thresholds": {
+            "steps": [
+              {
+                "value": null,
+                "color": "green"
+              },
+              {
+                "value": 10,
+                "color": "yellow"
+              },
+              {
+                "value": 25,
+                "color": "red"
+              }
+            ]
+          }
+        }
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        },
+        "colorMode": "value"
+      }
+    },
+    {
+      "id": 4,
+      "title": "Total Line Items (Current Month)",
+      "type": "stat",
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 18,
+        "y": 0
+      },
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "oci-finops-pg"
+      },
+      "targets": [
+        {
+          "rawSql": "SELECT COUNT(*) AS \"Line Items\" FROM oci_finops_reports WHERE billingperiodstart >= date_trunc('month', CURRENT_DATE) AND ('${tenancy:raw}' = '' OR tenancy_alias IN ($tenancy))",
+          "format": "table",
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "oci-finops-pg"
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": {
+            "steps": [
+              {
+                "value": null,
+                "color": "purple"
+              }
+            ]
+          }
+        }
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        },
+        "colorMode": "value"
+      }
+    },
+    {
+      "id": 5,
+      "title": "Daily Spend Trend (Last 90 Days)",
+      "type": "timeseries",
+      "gridPos": {
+        "h": 10,
+        "w": 24,
+        "x": 0,
+        "y": 4
+      },
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "oci-finops-pg"
+      },
+      "targets": [
+        {
+          "rawSql": "SELECT cost_date AS time, SUM(total_billed_cost) AS \"Billed Cost\", SUM(total_effective_cost) AS \"Effective Cost\" FROM mv_daily_cost_by_service WHERE cost_date >= CURRENT_DATE - interval '90 days' AND ('${tenancy:raw}' = '' OR tenancy_alias IN ($tenancy)) GROUP BY cost_date ORDER BY cost_date",
+          "format": "time_series",
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "oci-finops-pg"
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "currency:financial:$",
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 2,
+            "fillOpacity": 15,
+            "pointSize": 3
+          },
+          "decimals": 2
+        }
+      },
+      "options": {
+        "tooltip": {
+          "mode": "multi"
+        },
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      }
+    },
+    {
+      "id": 6,
+      "title": "Top 10 Services by Cost (Current Month)",
+      "type": "barchart",
+      "gridPos": {
+        "h": 10,
+        "w": 12,
+        "x": 0,
+        "y": 14
+      },
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "oci-finops-pg"
+      },
+      "targets": [
+        {
+          "rawSql": "SELECT servicename AS \"Service\", SUM(billedcost) AS \"Cost\" FROM oci_finops_reports WHERE billingperiodstart >= date_trunc('month', CURRENT_DATE) AND servicename IS NOT NULL AND ('\\${region:raw}' = '' OR region IN ($region)) AND ('\\${compartment:raw}' = '' OR oci_compartmentname IN ($compartment)) AND ('${tenancy:raw}' = '' OR tenancy_alias IN ($tenancy)) GROUP BY servicename ORDER BY \"Cost\" DESC LIMIT 10",
+          "format": "table",
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "oci-finops-pg"
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "currency:financial:$",
+          "decimals": 2
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Service"
+            },
+            "properties": [
+              {
+                "id": "custom.axisPlacement",
+                "value": "left"
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "orientation": "horizontal",
+        "barWidth": 0.7,
+        "showValue": "always"
+      }
+    },
+    {
+      "id": 7,
+      "title": "Cost by Charge Category",
+      "type": "piechart",
+      "gridPos": {
+        "h": 10,
+        "w": 12,
+        "x": 12,
+        "y": 14
+      },
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "oci-finops-pg"
+      },
+      "targets": [
+        {
+          "rawSql": "SELECT chargecategory AS \"Category\", SUM(billedcost) AS \"Cost\" FROM oci_finops_reports WHERE billingperiodstart >= date_trunc('month', CURRENT_DATE) AND chargecategory IS NOT NULL AND ('\\${region:raw}' = '' OR region IN ($region)) AND ('\\${compartment:raw}' = '' OR oci_compartmentname IN ($compartment)) AND ('${tenancy:raw}' = '' OR tenancy_alias IN ($tenancy)) GROUP BY chargecategory ORDER BY \"Cost\" DESC",
+          "format": "table",
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "oci-finops-pg"
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "currency:financial:$",
+          "decimals": 2
+        }
+      },
+      "options": {
+        "pieType": "donut",
+        "legend": {
+          "displayMode": "table",
+          "placement": "right",
+          "values": [
+            "value",
+            "percent"
+          ]
+        }
+      }
+    }
+  ],
+  "time": {
+    "from": "now-30d",
+    "to": "now"
+  }
+}

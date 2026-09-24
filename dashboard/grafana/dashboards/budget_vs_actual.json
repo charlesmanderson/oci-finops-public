@@ -1,0 +1,340 @@
+{
+  "uid": "oci-finops-budget-vs-actual",
+  "title": "OCI FinOps - Budget vs Actual",
+  "description": "Budget consumption gauges, projected spend, and alert thresholds",
+  "tags": [
+    "oci",
+    "finops",
+    "budget"
+  ],
+  "timezone": "browser",
+  "editable": true,
+  "graphTooltip": 1,
+  "refresh": "1h",
+  "schemaVersion": 39,
+  "templating": {
+    "list": [
+      {
+        "name": "tenancy",
+        "type": "query",
+        "label": "Tenancy",
+        "query": "SELECT alias FROM tenancies WHERE is_active ORDER BY alias",
+        "datasource": {
+          "type": "grafana-postgresql-datasource",
+          "uid": "oci-finops-pg"
+        },
+        "multi": true,
+        "includeAll": true,
+        "current": {
+          "text": "All",
+          "value": "$__all"
+        },
+        "allValue": ""
+      },
+      {
+        "name": "region",
+        "type": "query",
+        "query": "SELECT DISTINCT region FROM oci_finops_reports WHERE region IS NOT NULL ORDER BY region",
+        "datasource": {
+          "type": "grafana-postgresql-datasource",
+          "uid": "oci-finops-pg"
+        },
+        "multi": true,
+        "includeAll": true,
+        "current": {
+          "text": "All",
+          "value": "$__all"
+        },
+        "allValue": ""
+      },
+      {
+        "name": "compartment",
+        "type": "query",
+        "query": "SELECT DISTINCT oci_compartmentname FROM oci_finops_reports WHERE oci_compartmentname IS NOT NULL ORDER BY oci_compartmentname",
+        "datasource": {
+          "type": "grafana-postgresql-datasource",
+          "uid": "oci-finops-pg"
+        },
+        "multi": true,
+        "includeAll": true,
+        "current": {
+          "text": "All",
+          "value": "$__all"
+        },
+        "allValue": ""
+      }
+    ]
+  },
+  "panels": [
+    {
+      "id": 1,
+      "title": "Budget Consumption by Service",
+      "type": "gauge",
+      "gridPos": {
+        "h": 8,
+        "w": 24,
+        "x": 0,
+        "y": 0
+      },
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "oci-finops-pg"
+      },
+      "targets": [
+        {
+          "rawSql": "SELECT b.budget_name AS metric, ROUND((COALESCE(a.actual_cost, 0) / b.monthly_budget) * 100, 1) AS value FROM budgets b LEFT JOIN ( SELECT servicename, SUM(billedcost) AS actual_cost FROM oci_finops_reports WHERE billingperiodstart >= date_trunc('month', CURRENT_DATE) AND ('${tenancy:raw}' = '' OR tenancy_alias IN ($tenancy)) GROUP BY servicename ) a ON a.servicename = b.service_name WHERE b.effective_from <= CURRENT_DATE AND (b.effective_to IS NULL OR b.effective_to >= CURRENT_DATE) AND b.service_name IS NOT NULL ORDER BY value DESC",
+          "format": "table",
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "oci-finops-pg"
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "min": 0,
+          "max": 150,
+          "thresholds": {
+            "steps": [
+              {
+                "value": null,
+                "color": "green"
+              },
+              {
+                "value": 80,
+                "color": "yellow"
+              },
+              {
+                "value": 100,
+                "color": "red"
+              }
+            ]
+          }
+        }
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        },
+        "showThresholdMarkers": true
+      }
+    },
+    {
+      "id": 2,
+      "title": "Budget vs Actual Detail",
+      "type": "table",
+      "gridPos": {
+        "h": 8,
+        "w": 24,
+        "x": 0,
+        "y": 8
+      },
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "oci-finops-pg"
+      },
+      "targets": [
+        {
+          "rawSql": "SELECT b.budget_name AS \"Budget\", b.service_name AS \"Service\", b.compartment_name AS \"Compartment\", b.monthly_budget AS \"Monthly Budget\", COALESCE(a.actual_cost, 0) AS \"Actual Cost\", b.monthly_budget - COALESCE(a.actual_cost, 0) AS \"Remaining\", ROUND((COALESCE(a.actual_cost, 0) / b.monthly_budget) * 100, 1) AS \"% Used\" FROM budgets b LEFT JOIN ( SELECT servicename, oci_compartmentname, SUM(billedcost) AS actual_cost FROM oci_finops_reports WHERE billingperiodstart >= date_trunc('month', CURRENT_DATE) AND ('${tenancy:raw}' = '' OR tenancy_alias IN ($tenancy)) GROUP BY servicename, oci_compartmentname ) a ON (a.servicename = b.service_name OR b.service_name IS NULL) AND (a.oci_compartmentname = b.compartment_name OR b.compartment_name IS NULL) WHERE b.effective_from <= CURRENT_DATE AND (b.effective_to IS NULL OR b.effective_to >= CURRENT_DATE) ORDER BY \"% Used\" DESC",
+          "format": "table",
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "oci-finops-pg"
+          }
+        }
+      ],
+      "fieldConfig": {
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Monthly Budget"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "currency:financial:$"
+              },
+              {
+                "id": "decimals",
+                "value": 2
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Actual Cost"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "currency:financial:$"
+              },
+              {
+                "id": "decimals",
+                "value": 2
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Remaining"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "currency:financial:$"
+              },
+              {
+                "id": "decimals",
+                "value": 2
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "% Used"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "percent"
+              },
+              {
+                "id": "thresholds",
+                "value": {
+                  "steps": [
+                    {
+                      "value": null,
+                      "color": "green"
+                    },
+                    {
+                      "value": 80,
+                      "color": "yellow"
+                    },
+                    {
+                      "value": 100,
+                      "color": "red"
+                    }
+                  ]
+                }
+              },
+              {
+                "id": "custom.displayMode",
+                "value": "color-background"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": 3,
+      "title": "Projected Month-End Spend",
+      "type": "stat",
+      "gridPos": {
+        "h": 4,
+        "w": 12,
+        "x": 0,
+        "y": 16
+      },
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "oci-finops-pg"
+      },
+      "targets": [
+        {
+          "rawSql": "WITH daily_avg AS ( SELECT SUM(billedcost) / NULLIF(EXTRACT(DAY FROM CURRENT_DATE - date_trunc('month', CURRENT_DATE)), 0) AS avg_daily FROM oci_finops_reports WHERE billingperiodstart >= date_trunc('month', CURRENT_DATE) ) SELECT ROUND(avg_daily * EXTRACT(DAY FROM (date_trunc('month', CURRENT_DATE) + interval '1 month' - interval '1 day')), 2) AS \"Projected Spend\" FROM daily_avg AND ('${tenancy:raw}' = '' OR tenancy_alias IN ($tenancy))",
+          "format": "table",
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "oci-finops-pg"
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "currency:financial:$",
+          "thresholds": {
+            "steps": [
+              {
+                "value": null,
+                "color": "orange"
+              }
+            ]
+          },
+          "decimals": 2
+        }
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        },
+        "colorMode": "value"
+      }
+    },
+    {
+      "id": 4,
+      "title": "Daily Run Rate",
+      "type": "stat",
+      "gridPos": {
+        "h": 4,
+        "w": 12,
+        "x": 12,
+        "y": 16
+      },
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "oci-finops-pg"
+      },
+      "targets": [
+        {
+          "rawSql": "SELECT ROUND(SUM(billedcost) / NULLIF(EXTRACT(DAY FROM CURRENT_DATE - date_trunc('month', CURRENT_DATE)), 0), 2) AS \"Daily Run Rate\" FROM oci_finops_reports WHERE billingperiodstart >= date_trunc('month', CURRENT_DATE) AND ('${tenancy:raw}' = '' OR tenancy_alias IN ($tenancy))",
+          "format": "table",
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "oci-finops-pg"
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "currency:financial:$",
+          "thresholds": {
+            "steps": [
+              {
+                "value": null,
+                "color": "blue"
+              }
+            ]
+          },
+          "decimals": 2
+        }
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        },
+        "colorMode": "value"
+      }
+    }
+  ],
+  "time": {
+    "from": "now-30d",
+    "to": "now"
+  }
+}

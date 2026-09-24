@@ -1,0 +1,46 @@
+version: "3.9"
+
+services:
+  postgres:
+    image: postgres:18-alpine
+    container_name: oci-finops-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: oci_finops
+      POSTGRES_USER: finops
+      POSTGRES_PASSWORD: changeme
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./db/migrations:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U finops -d oci_finops"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  grafana:
+    image: grafana/grafana-oss:latest
+    container_name: oci-finops-grafana
+    restart: unless-stopped
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-admin}
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_PG_HOST: postgres
+      GF_PG_PORT: "5432"
+      GF_PG_PASSWORD: changeme
+      GF_PG_SSLMODE: disable
+    ports:
+      - "3000:3000"
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./dashboard/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./dashboard/grafana/dashboards:/var/lib/grafana/dashboards:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+volumes:
+  pgdata:
+  grafana_data:

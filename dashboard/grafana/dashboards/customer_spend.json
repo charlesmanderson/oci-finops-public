@@ -1,0 +1,408 @@
+{
+  "uid": "oci-finops-customer-spend",
+  "title": "OCI FinOps - Customer Monthly Spend",
+  "description": "Per-customer spend tracking. Compartment-level customers roll up by compartment within their tenancy; whole-tenancy customers roll up at the tenancy level.",
+  "tags": [
+    "oci",
+    "finops",
+    "customer"
+  ],
+  "timezone": "browser",
+  "editable": true,
+  "graphTooltip": 1,
+  "refresh": "1h",
+  "schemaVersion": 39,
+  "templating": {
+    "list": [
+      {
+        "name": "tenancy",
+        "type": "query",
+        "label": "Tenancy",
+        "query": "SELECT alias FROM tenancies WHERE is_active ORDER BY alias",
+        "datasource": {
+          "type": "grafana-postgresql-datasource",
+          "uid": "oci-finops-pg"
+        },
+        "multi": true,
+        "includeAll": true,
+        "current": {
+          "text": "All",
+          "value": "$__all"
+        },
+        "allValue": ""
+      },
+      {
+        "name": "customer",
+        "label": "Customer",
+        "type": "query",
+        "query": "SELECT group_name FROM (SELECT group_name FROM customer_groups WHERE sub_team IS NULL UNION SELECT group_name FROM tenancy_customers WHERE sub_team IS NULL) c ORDER BY group_name",
+        "datasource": {
+          "type": "grafana-postgresql-datasource",
+          "uid": "oci-finops-pg"
+        },
+        "multi": false,
+        "includeAll": false,
+        "current": {
+          "text": "",
+          "value": ""
+        }
+      }
+    ]
+  },
+  "panels": [
+    {
+      "id": 1,
+      "title": "MTD Spend",
+      "type": "stat",
+      "gridPos": {
+        "h": 4,
+        "w": 8,
+        "x": 0,
+        "y": 0
+      },
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "oci-finops-pg"
+      },
+      "targets": [
+        {
+          "rawSql": "SELECT SUM(total_billed_cost) AS \"MTD Spend\" FROM mv_daily_cost_by_group g LEFT JOIN tenancy_customers tc ON tc.tenancy_alias = g.tenancy_alias WHERE COALESCE(tc.group_name, g.group_name) = '${customer}' AND cost_date >= date_trunc('month', CURRENT_DATE) AND ('${tenancy:raw}' = '' OR g.tenancy_alias IN ($tenancy))",
+          "format": "table",
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "oci-finops-pg"
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "currency:financial:$",
+          "thresholds": {
+            "steps": [
+              {
+                "value": null,
+                "color": "green"
+              }
+            ]
+          },
+          "decimals": 2
+        }
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        },
+        "colorMode": "value"
+      }
+    },
+    {
+      "id": 2,
+      "title": "Previous Month",
+      "type": "stat",
+      "gridPos": {
+        "h": 4,
+        "w": 8,
+        "x": 8,
+        "y": 0
+      },
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "oci-finops-pg"
+      },
+      "targets": [
+        {
+          "rawSql": "SELECT SUM(total_billed_cost) AS \"Previous Month\" FROM mv_daily_cost_by_group g LEFT JOIN tenancy_customers tc ON tc.tenancy_alias = g.tenancy_alias WHERE COALESCE(tc.group_name, g.group_name) = '${customer}' AND cost_date >= date_trunc('month', CURRENT_DATE) - interval '1 month' AND cost_date < date_trunc('month', CURRENT_DATE) AND ('${tenancy:raw}' = '' OR g.tenancy_alias IN ($tenancy))",
+          "format": "table",
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "oci-finops-pg"
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "currency:financial:$",
+          "thresholds": {
+            "steps": [
+              {
+                "value": null,
+                "color": "blue"
+              }
+            ]
+          },
+          "decimals": 2
+        }
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        },
+        "colorMode": "value"
+      }
+    },
+    {
+      "id": 3,
+      "title": "MoM Change",
+      "type": "stat",
+      "gridPos": {
+        "h": 4,
+        "w": 8,
+        "x": 16,
+        "y": 0
+      },
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "oci-finops-pg"
+      },
+      "targets": [
+        {
+          "rawSql": "WITH cur AS ( SELECT SUM(total_billed_cost) AS spend FROM mv_daily_cost_by_group g LEFT JOIN tenancy_customers tc ON tc.tenancy_alias = g.tenancy_alias WHERE COALESCE(tc.group_name, g.group_name) = '${customer}' AND cost_date >= date_trunc('month', CURRENT_DATE) AND ('${tenancy:raw}' = '' OR g.tenancy_alias IN ($tenancy)) ), prev AS ( SELECT SUM(total_billed_cost) AS spend FROM mv_daily_cost_by_group g LEFT JOIN tenancy_customers tc ON tc.tenancy_alias = g.tenancy_alias WHERE COALESCE(tc.group_name, g.group_name) = '${customer}' AND cost_date >= date_trunc('month', CURRENT_DATE) - interval '1 month' AND cost_date < date_trunc('month', CURRENT_DATE) AND ('${tenancy:raw}' = '' OR g.tenancy_alias IN ($tenancy)) ) SELECT CASE WHEN prev.spend > 0 THEN ROUND(((cur.spend - prev.spend) / prev.spend) * 100, 1) ELSE NULL END AS \"MoM Change %\" FROM cur, prev",
+          "format": "table",
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "oci-finops-pg"
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "thresholds": {
+            "steps": [
+              {
+                "value": null,
+                "color": "green"
+              },
+              {
+                "value": 10,
+                "color": "yellow"
+              },
+              {
+                "value": 25,
+                "color": "red"
+              }
+            ]
+          }
+        }
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        },
+        "colorMode": "value"
+      }
+    },
+    {
+      "id": 4,
+      "title": "Daily Spend Trend",
+      "type": "timeseries",
+      "gridPos": {
+        "h": 8,
+        "w": 24,
+        "x": 0,
+        "y": 4
+      },
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "oci-finops-pg"
+      },
+      "targets": [
+        {
+          "rawSql": "SELECT cost_date AS time, SUM(total_billed_cost) AS \"Billed Cost\" FROM mv_daily_cost_by_group g LEFT JOIN tenancy_customers tc ON tc.tenancy_alias = g.tenancy_alias WHERE COALESCE(tc.group_name, g.group_name) = '${customer}' AND cost_date >= CURRENT_DATE - interval '90 days' AND ('${tenancy:raw}' = '' OR g.tenancy_alias IN ($tenancy)) GROUP BY cost_date ORDER BY cost_date",
+          "format": "time_series",
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "oci-finops-pg"
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "currency:financial:$",
+          "custom": {
+            "drawStyle": "line",
+            "fillOpacity": 15,
+            "pointSize": 3,
+            "lineWidth": 2
+          },
+          "decimals": 2
+        }
+      }
+    },
+    {
+      "id": 5,
+      "title": "Monthly Spend (Trailing 12 Months)",
+      "type": "barchart",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 12
+      },
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "oci-finops-pg"
+      },
+      "targets": [
+        {
+          "rawSql": "SELECT to_char(date_trunc('month', cost_date), 'YYYY-MM') AS \"Month\", SUM(total_billed_cost) AS \"Billed Cost\" FROM mv_daily_cost_by_group g LEFT JOIN tenancy_customers tc ON tc.tenancy_alias = g.tenancy_alias WHERE COALESCE(tc.group_name, g.group_name) = '${customer}' AND cost_date >= CURRENT_DATE - interval '12 months' AND ('${tenancy:raw}' = '' OR g.tenancy_alias IN ($tenancy)) GROUP BY date_trunc('month', cost_date) ORDER BY date_trunc('month', cost_date)",
+          "format": "table",
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "oci-finops-pg"
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "currency:financial:$",
+          "decimals": 2
+        }
+      },
+      "options": {
+        "orientation": "vertical",
+        "xTickLabelRotation": -45
+      }
+    },
+    {
+      "id": 6,
+      "title": "Top Services by Cost (Current Month)",
+      "type": "barchart",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 12
+      },
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "oci-finops-pg"
+      },
+      "targets": [
+        {
+          "rawSql": "SELECT servicename AS \"Service\", SUM(total_billed_cost) AS \"Billed Cost\" FROM mv_daily_cost_by_group g LEFT JOIN tenancy_customers tc ON tc.tenancy_alias = g.tenancy_alias WHERE COALESCE(tc.group_name, g.group_name) = '${customer}' AND cost_date >= date_trunc('month', CURRENT_DATE) AND ('${tenancy:raw}' = '' OR g.tenancy_alias IN ($tenancy)) GROUP BY servicename ORDER BY SUM(total_billed_cost) DESC LIMIT 10",
+          "format": "table",
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "oci-finops-pg"
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "currency:financial:$",
+          "decimals": 2
+        }
+      },
+      "options": {
+        "orientation": "horizontal"
+      }
+    },
+    {
+      "id": 7,
+      "title": "Service Detail",
+      "type": "table",
+      "gridPos": {
+        "h": 10,
+        "w": 24,
+        "x": 0,
+        "y": 20
+      },
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "oci-finops-pg"
+      },
+      "targets": [
+        {
+          "rawSql": "SELECT servicename AS \"Service\", servicecategory AS \"Category\", SUM(total_billed_cost) AS \"Billed Cost\", SUM(total_effective_cost) AS \"Effective Cost\", SUM(total_list_cost) AS \"List Cost\", CASE WHEN SUM(total_list_cost) > 0 THEN ROUND((1 - SUM(total_billed_cost) / SUM(total_list_cost)) * 100, 1) ELSE 0 END AS \"Discount %\" FROM mv_daily_cost_by_group g LEFT JOIN tenancy_customers tc ON tc.tenancy_alias = g.tenancy_alias WHERE COALESCE(tc.group_name, g.group_name) = '${customer}' AND cost_date >= date_trunc('month', CURRENT_DATE) AND ('${tenancy:raw}' = '' OR g.tenancy_alias IN ($tenancy)) GROUP BY servicename, servicecategory ORDER BY SUM(total_billed_cost) DESC",
+          "format": "table",
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "oci-finops-pg"
+          }
+        }
+      ],
+      "fieldConfig": {
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Billed Cost"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "currency:financial:$"
+              },
+              {
+                "id": "decimals",
+                "value": 2
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Effective Cost"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "currency:financial:$"
+              },
+              {
+                "id": "decimals",
+                "value": 2
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "List Cost"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "currency:financial:$"
+              },
+              {
+                "id": "decimals",
+                "value": 2
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Discount %"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "percent"
+              }
+            ]
+          }
+        ]
+      }
+    }
+  ],
+  "time": {
+    "from": "now-30d",
+    "to": "now"
+  }
+}

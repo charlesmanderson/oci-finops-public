@@ -1,0 +1,485 @@
+{
+  "uid": "oci-finops-anomaly-monitor",
+  "title": "OCI FinOps - Anomaly Monitor",
+  "description": "Cost anomaly detection results, severity breakdown, and timeline",
+  "tags": [
+    "oci",
+    "finops",
+    "anomaly"
+  ],
+  "timezone": "browser",
+  "editable": true,
+  "graphTooltip": 1,
+  "refresh": "1h",
+  "schemaVersion": 39,
+  "templating": {
+    "list": [
+      {
+        "name": "tenancy",
+        "type": "query",
+        "label": "Tenancy",
+        "query": "SELECT alias FROM tenancies WHERE is_active ORDER BY alias",
+        "datasource": {
+          "type": "grafana-postgresql-datasource",
+          "uid": "oci-finops-pg"
+        },
+        "multi": true,
+        "includeAll": true,
+        "current": {
+          "text": "All",
+          "value": "$__all"
+        },
+        "allValue": ""
+      },
+      {
+        "name": "severity",
+        "type": "query",
+        "query": "SELECT DISTINCT severity FROM cost_anomalies ORDER BY severity",
+        "datasource": {
+          "type": "grafana-postgresql-datasource",
+          "uid": "oci-finops-pg"
+        },
+        "multi": true,
+        "includeAll": true,
+        "current": {
+          "text": "All",
+          "value": "$__all"
+        },
+        "allValue": ""
+      },
+      {
+        "name": "service",
+        "type": "query",
+        "query": "SELECT DISTINCT service_name FROM cost_anomalies WHERE service_name IS NOT NULL ORDER BY service_name",
+        "datasource": {
+          "type": "grafana-postgresql-datasource",
+          "uid": "oci-finops-pg"
+        },
+        "multi": true,
+        "includeAll": true,
+        "current": {
+          "text": "All",
+          "value": "$__all"
+        },
+        "allValue": ""
+      }
+    ]
+  },
+  "panels": [
+    {
+      "id": 1,
+      "title": "Critical Anomalies",
+      "type": "stat",
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 0,
+        "y": 0
+      },
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "oci-finops-pg"
+      },
+      "targets": [
+        {
+          "rawSql": "SELECT COUNT(*) AS \"Critical\" FROM cost_anomalies WHERE severity = 'critical' AND detection_date >= $__timeFrom()::date AND detection_date <= $__timeTo()::date AND ('${tenancy:raw}' = '' OR tenancy_alias IN ($tenancy))",
+          "format": "table",
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "oci-finops-pg"
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": {
+            "steps": [
+              {
+                "value": null,
+                "color": "green"
+              },
+              {
+                "value": 1,
+                "color": "red"
+              }
+            ]
+          }
+        }
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        },
+        "colorMode": "background"
+      }
+    },
+    {
+      "id": 2,
+      "title": "High Anomalies",
+      "type": "stat",
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 6,
+        "y": 0
+      },
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "oci-finops-pg"
+      },
+      "targets": [
+        {
+          "rawSql": "SELECT COUNT(*) AS \"High\" FROM cost_anomalies WHERE severity = 'high' AND detection_date >= $__timeFrom()::date AND detection_date <= $__timeTo()::date AND ('${tenancy:raw}' = '' OR tenancy_alias IN ($tenancy))",
+          "format": "table",
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "oci-finops-pg"
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": {
+            "steps": [
+              {
+                "value": null,
+                "color": "green"
+              },
+              {
+                "value": 1,
+                "color": "orange"
+              }
+            ]
+          }
+        }
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        },
+        "colorMode": "background"
+      }
+    },
+    {
+      "id": 3,
+      "title": "Medium Anomalies",
+      "type": "stat",
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 12,
+        "y": 0
+      },
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "oci-finops-pg"
+      },
+      "targets": [
+        {
+          "rawSql": "SELECT COUNT(*) AS \"Medium\" FROM cost_anomalies WHERE severity = 'medium' AND detection_date >= $__timeFrom()::date AND detection_date <= $__timeTo()::date AND ('${tenancy:raw}' = '' OR tenancy_alias IN ($tenancy))",
+          "format": "table",
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "oci-finops-pg"
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": {
+            "steps": [
+              {
+                "value": null,
+                "color": "green"
+              },
+              {
+                "value": 1,
+                "color": "yellow"
+              }
+            ]
+          }
+        }
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        },
+        "colorMode": "background"
+      }
+    },
+    {
+      "id": 4,
+      "title": "Total Anomalies",
+      "type": "stat",
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 18,
+        "y": 0
+      },
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "oci-finops-pg"
+      },
+      "targets": [
+        {
+          "rawSql": "SELECT COUNT(*) AS \"Total\" FROM cost_anomalies WHERE detection_date >= $__timeFrom()::date AND detection_date <= $__timeTo()::date AND ('${tenancy:raw}' = '' OR tenancy_alias IN ($tenancy))",
+          "format": "table",
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "oci-finops-pg"
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": {
+            "steps": [
+              {
+                "value": null,
+                "color": "purple"
+              }
+            ]
+          }
+        }
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        },
+        "colorMode": "value"
+      }
+    },
+    {
+      "id": 5,
+      "title": "Anomaly Timeline",
+      "type": "timeseries",
+      "gridPos": {
+        "h": 10,
+        "w": 24,
+        "x": 0,
+        "y": 4
+      },
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "oci-finops-pg"
+      },
+      "targets": [
+        {
+          "rawSql": "SELECT detection_date AS time, severity AS metric, COUNT(*) AS value FROM cost_anomalies WHERE detection_date >= $__timeFrom()::date AND detection_date <= $__timeTo()::date AND ('\\${severity:raw}' = '' OR severity IN ($severity)) AND ('\\${service:raw}' = '' OR service_name IN ($service)) AND ('${tenancy:raw}' = '' OR tenancy_alias IN ($tenancy)) GROUP BY detection_date, severity ORDER BY detection_date",
+          "format": "time_series",
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "oci-finops-pg"
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "drawStyle": "bars",
+            "fillOpacity": 80,
+            "stacking": {
+              "mode": "normal"
+            }
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "critical"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "red",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "high"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "orange",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "medium"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "yellow",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "low"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "blue",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": 6,
+      "title": "Anomaly Detail",
+      "type": "table",
+      "gridPos": {
+        "h": 10,
+        "w": 24,
+        "x": 0,
+        "y": 14
+      },
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "oci-finops-pg"
+      },
+      "targets": [
+        {
+          "rawSql": "SELECT detection_date AS \"Date\", service_name AS \"Service\", anomaly_type AS \"Type\", severity AS \"Severity\", metric_value AS \"Actual Cost\", expected_value AS \"Expected Cost\", ROUND(metric_value - expected_value, 2) AS \"Difference\", deviation_score AS \"Deviation\", CASE WHEN notified THEN 'Yes' ELSE 'No' END AS \"Notified\" FROM cost_anomalies WHERE detection_date >= $__timeFrom()::date AND detection_date <= $__timeTo()::date AND ('\\${severity:raw}' = '' OR severity IN ($severity)) AND ('\\${service:raw}' = '' OR service_name IN ($service)) AND ('${tenancy:raw}' = '' OR tenancy_alias IN ($tenancy)) ORDER BY detection_date DESC, severity DESC",
+          "format": "table",
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "oci-finops-pg"
+          }
+        }
+      ],
+      "fieldConfig": {
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Actual Cost"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "currency:financial:$"
+              },
+              {
+                "id": "decimals",
+                "value": 2
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Expected Cost"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "currency:financial:$"
+              },
+              {
+                "id": "decimals",
+                "value": 2
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Difference"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "currency:financial:$"
+              },
+              {
+                "id": "decimals",
+                "value": 2
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Severity"
+            },
+            "properties": [
+              {
+                "id": "custom.displayMode",
+                "value": "color-text"
+              },
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "type": "value",
+                    "options": {
+                      "critical": {
+                        "color": "red",
+                        "text": "Critical"
+                      },
+                      "high": {
+                        "color": "orange",
+                        "text": "High"
+                      },
+                      "medium": {
+                        "color": "yellow",
+                        "text": "Medium"
+                      },
+                      "low": {
+                        "color": "blue",
+                        "text": "Low"
+                      }
+                    }
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    }
+  ],
+  "time": {
+    "from": "now-30d",
+    "to": "now"
+  }
+}

@@ -1,0 +1,39 @@
+[build-system]
+requires = ["setuptools>=68.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "oci-finops"
+version = "0.1.0"
+description = "OCI FinOps Cost Intelligence Platform — PostgreSQL + Grafana replacement for ADW + Oracle Analytics Cloud"
+requires-python = ">=3.11"
+dependencies = [
+    "oci>=2.120.0",
+    "psycopg2-binary>=2.9.9",
+    "python-dotenv>=1.0.0",
+    "schedule>=1.2.0",
+]
+
+[project.optional-dependencies]
+ml = [
+    "scikit-learn>=1.4.0",
+    "pandas>=2.1.0",
+    "numpy>=1.26.0",
+]
+dev = [
+    "pytest>=7.4.0",
+    "pytest-cov>=4.1.0",
+    "ruff>=0.3.0",
+]
+
+[project.scripts]
+oci-finops-etl = "etl.pipeline:main"
+oci-finops-anomaly = "anomaly.runner:main"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+
+[tool.ruff]
+target-version = "py311"
+line-length = 120

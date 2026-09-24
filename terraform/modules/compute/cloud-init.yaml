@@ -1,0 +1,61 @@
+#cloud-config
+package_update: true
+
+packages:
+  - docker
+  - python3.11
+  - python3.11-pip
+  - git
+
+runcmd:
+  # Enable and start Docker
+  - systemctl enable docker
+  - systemctl start docker
+  - usermod -aG docker opc
+
+  # Install Docker Compose
+  - curl -SL "https://github.com/docker/compose/releases/latest/download/docker-compose-linux-x86_64" -o /usr/local/bin/docker-compose
+  - chmod +x /usr/local/bin/docker-compose
+
+  # Create application directory
+  - mkdir -p /opt/oci-finops
+  - chown opc:opc /opt/oci-finops
+
+  # Write environment file
+  - |
+    cat > /opt/oci-finops/.env << 'ENVEOF'
+    OCI_TENANCY_OCID=${tenancy_ocid}
+    OCI_REGION=${region}
+    PG_HOST=${pg_host}
+    PG_PORT=5432
+    PG_DATABASE=oci_finops
+    PG_USER=finops
+    PG_PASSWORD=${pg_password}
+    ETL_BATCH_SIZE=10000
+    ETL_TEMP_DIR=/tmp/oci-finops
+    ENVEOF
+  - chown opc:opc /opt/oci-finops/.env
+  - chmod 600 /opt/oci-finops/.env
+
+  # Install Python dependencies
+  - pip3.11 install oci psycopg2-binary python-dotenv schedule
+
+  # Set up cron for ETL (every 6 hours)
+  - echo "0 */6 * * * opc cd /opt/oci-finops && /usr/bin/python3.11 -m etl.pipeline >> /var/log/oci-finops-etl.log 2>&1" > /etc/cron.d/oci-finops-etl
+
+  # Set up cron for anomaly detection (daily at 7am)
+  - echo "0 7 * * * opc cd /opt/oci-finops && /usr/bin/python3.11 -m anomaly.runner >> /var/log/oci-finops-anomaly.log 2>&1" > /etc/cron.d/oci-finops-anomaly
+
+  # Open firewall for Grafana
+  - firewall-cmd --permanent --add-port=3000/tcp
+  - firewall-cmd --reload
+
+  # Pull and start Grafana container
+  - |
+    docker run -d \
+      --name grafana \
+      --restart unless-stopped \
+      -p 3000:3000 \
+      -e GF_SECURITY_ADMIN_PASSWORD=admin \
+      -e GF_USERS_ALLOW_SIGN_UP=false \
+      grafana/grafana-oss:latest

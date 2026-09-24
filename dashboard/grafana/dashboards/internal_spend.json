@@ -1,0 +1,391 @@
+{
+  "uid": "oci-finops-internal-spend",
+  "title": "OCI FinOps - Other Internal Spend",
+  "description": "Internal team spend breakdown for Ops, CNC, Oracle, and Other teams",
+  "tags": [
+    "oci",
+    "finops",
+    "internal"
+  ],
+  "timezone": "browser",
+  "editable": true,
+  "graphTooltip": 1,
+  "refresh": "1h",
+  "schemaVersion": 39,
+  "templating": {
+    "list": [
+      {
+        "name": "tenancy",
+        "type": "query",
+        "label": "Tenancy",
+        "query": "SELECT alias FROM tenancies WHERE is_active ORDER BY alias",
+        "datasource": {
+          "type": "grafana-postgresql-datasource",
+          "uid": "oci-finops-pg"
+        },
+        "multi": true,
+        "includeAll": true,
+        "current": {
+          "text": "All",
+          "value": "$__all"
+        },
+        "allValue": ""
+      },
+      {
+        "name": "sub_team",
+        "label": "Team",
+        "type": "query",
+        "query": "SELECT DISTINCT sub_team FROM customer_groups WHERE group_name = 'Internal' AND sub_team IN ('Ops', 'CNC', 'Oracle', 'Other', 'FinOps Reporting') ORDER BY sub_team",
+        "datasource": {
+          "type": "grafana-postgresql-datasource",
+          "uid": "oci-finops-pg"
+        },
+        "multi": true,
+        "includeAll": true,
+        "current": {
+          "text": "All",
+          "value": "$__all"
+        },
+        "allValue": ""
+      }
+    ]
+  },
+  "panels": [
+    {
+      "id": 1,
+      "title": "MTD Spend",
+      "type": "stat",
+      "gridPos": {
+        "h": 4,
+        "w": 8,
+        "x": 0,
+        "y": 0
+      },
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "oci-finops-pg"
+      },
+      "targets": [
+        {
+          "rawSql": "SELECT SUM(total_billed_cost) AS \"MTD Spend\" FROM mv_daily_cost_by_group WHERE group_name = 'Internal' AND sub_team IN ('Ops', 'CNC', 'Oracle', 'Other', 'FinOps Reporting') AND cost_date >= date_trunc('month', CURRENT_DATE) AND ('\\${sub_team:raw}' = '' OR sub_team IN ($sub_team)) AND ('${tenancy:raw}' = '' OR tenancy_alias IN ($tenancy))",
+          "format": "table",
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "oci-finops-pg"
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "currency:financial:$",
+          "thresholds": {
+            "steps": [
+              {
+                "value": null,
+                "color": "green"
+              }
+            ]
+          },
+          "decimals": 2
+        }
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        },
+        "colorMode": "value"
+      }
+    },
+    {
+      "id": 2,
+      "title": "Previous Month",
+      "type": "stat",
+      "gridPos": {
+        "h": 4,
+        "w": 8,
+        "x": 8,
+        "y": 0
+      },
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "oci-finops-pg"
+      },
+      "targets": [
+        {
+          "rawSql": "SELECT SUM(total_billed_cost) AS \"Previous Month\" FROM mv_daily_cost_by_group WHERE group_name = 'Internal' AND sub_team IN ('Ops', 'CNC', 'Oracle', 'Other', 'FinOps Reporting') AND cost_date >= date_trunc('month', CURRENT_DATE) - interval '1 month' AND cost_date < date_trunc('month', CURRENT_DATE) AND ('\\${sub_team:raw}' = '' OR sub_team IN ($sub_team)) AND ('${tenancy:raw}' = '' OR tenancy_alias IN ($tenancy))",
+          "format": "table",
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "oci-finops-pg"
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "currency:financial:$",
+          "thresholds": {
+            "steps": [
+              {
+                "value": null,
+                "color": "blue"
+              }
+            ]
+          },
+          "decimals": 2
+        }
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        },
+        "colorMode": "value"
+      }
+    },
+    {
+      "id": 3,
+      "title": "MoM Change",
+      "type": "stat",
+      "gridPos": {
+        "h": 4,
+        "w": 8,
+        "x": 16,
+        "y": 0
+      },
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "oci-finops-pg"
+      },
+      "targets": [
+        {
+          "rawSql": "WITH cur AS ( SELECT SUM(total_billed_cost) AS spend FROM mv_daily_cost_by_group WHERE group_name = 'Internal' AND sub_team IN ('Ops', 'CNC', 'Oracle', 'Other', 'FinOps Reporting') AND cost_date >= date_trunc('month', CURRENT_DATE) AND ('\\${sub_team:raw}' = '' OR sub_team IN ($sub_team)) ), prev AS ( SELECT SUM(total_billed_cost) AS spend FROM mv_daily_cost_by_group WHERE group_name = 'Internal' AND sub_team IN ('Ops', 'CNC', 'Oracle', 'Other', 'FinOps Reporting') AND cost_date >= date_trunc('month', CURRENT_DATE) - interval '1 month' AND cost_date < date_trunc('month', CURRENT_DATE) AND ('\\${sub_team:raw}' = '' OR sub_team IN ($sub_team)) ) SELECT CASE WHEN prev.spend > 0 THEN ROUND(((cur.spend - prev.spend) / prev.spend) * 100, 1) ELSE NULL END AS \"MoM Change %\" FROM cur, prev AND ('${tenancy:raw}' = '' OR tenancy_alias IN ($tenancy))",
+          "format": "table",
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "oci-finops-pg"
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "thresholds": {
+            "steps": [
+              {
+                "value": null,
+                "color": "green"
+              },
+              {
+                "value": 10,
+                "color": "yellow"
+              },
+              {
+                "value": 25,
+                "color": "red"
+              }
+            ]
+          }
+        }
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        },
+        "colorMode": "value"
+      }
+    },
+    {
+      "id": 4,
+      "title": "Spend by Sub-Team (Current Month)",
+      "type": "piechart",
+      "gridPos": {
+        "h": 8,
+        "w": 10,
+        "x": 0,
+        "y": 4
+      },
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "oci-finops-pg"
+      },
+      "targets": [
+        {
+          "rawSql": "SELECT sub_team AS \"Team\", SUM(total_billed_cost) AS \"Billed Cost\" FROM mv_daily_cost_by_group WHERE group_name = 'Internal' AND sub_team IN ('Ops', 'CNC', 'Oracle', 'Other', 'FinOps Reporting') AND cost_date >= date_trunc('month', CURRENT_DATE) AND ('${tenancy:raw}' = '' OR tenancy_alias IN ($tenancy)) GROUP BY sub_team ORDER BY SUM(total_billed_cost) DESC",
+          "format": "table",
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "oci-finops-pg"
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "currency:financial:$",
+          "decimals": 2
+        }
+      },
+      "options": {
+        "pieType": "donut",
+        "legend": {
+          "displayMode": "table",
+          "placement": "right",
+          "values": [
+            "value",
+            "percent"
+          ]
+        }
+      }
+    },
+    {
+      "id": 5,
+      "title": "Daily Spend Trend by Sub-Team",
+      "type": "timeseries",
+      "gridPos": {
+        "h": 8,
+        "w": 14,
+        "x": 10,
+        "y": 4
+      },
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "oci-finops-pg"
+      },
+      "targets": [
+        {
+          "rawSql": "SELECT cost_date AS time, sub_team AS metric, SUM(total_billed_cost) AS value FROM mv_daily_cost_by_group WHERE group_name = 'Internal' AND sub_team IN ('Ops', 'CNC', 'Oracle', 'Other', 'FinOps Reporting') AND cost_date >= CURRENT_DATE - interval '90 days' AND ('\\${sub_team:raw}' = '' OR sub_team IN ($sub_team)) AND ('${tenancy:raw}' = '' OR tenancy_alias IN ($tenancy)) GROUP BY cost_date, sub_team ORDER BY cost_date",
+          "format": "time_series",
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "oci-finops-pg"
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "currency:financial:$",
+          "custom": {
+            "drawStyle": "line",
+            "fillOpacity": 30,
+            "pointSize": 1,
+            "lineWidth": 1,
+            "stacking": {
+              "mode": "normal"
+            }
+          },
+          "decimals": 2
+        }
+      }
+    },
+    {
+      "id": 6,
+      "title": "Compartment Breakdown",
+      "type": "table",
+      "gridPos": {
+        "h": 10,
+        "w": 24,
+        "x": 0,
+        "y": 12
+      },
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "oci-finops-pg"
+      },
+      "targets": [
+        {
+          "rawSql": "WITH cur AS ( SELECT sub_team, compartment_name, display_name, SUM(total_billed_cost) AS billed FROM mv_daily_cost_by_group WHERE group_name = 'Internal' AND sub_team IN ('Ops', 'CNC', 'Oracle', 'Other', 'FinOps Reporting') AND cost_date >= date_trunc('month', CURRENT_DATE) AND ('\\${sub_team:raw}' = '' OR sub_team IN ($sub_team)) AND ('${tenancy:raw}' = '' OR tenancy_alias IN ($tenancy)) GROUP BY sub_team, compartment_name, display_name ), prev AS ( SELECT sub_team, compartment_name, SUM(total_billed_cost) AS billed FROM mv_daily_cost_by_group WHERE group_name = 'Internal' AND sub_team IN ('Ops', 'CNC', 'Oracle', 'Other', 'FinOps Reporting') AND cost_date >= date_trunc('month', CURRENT_DATE) - interval '1 month' AND cost_date < date_trunc('month', CURRENT_DATE) AND ('\\${sub_team:raw}' = '' OR sub_team IN ($sub_team)) GROUP BY sub_team, compartment_name ) SELECT c.sub_team AS \"Team\", c.display_name AS \"Compartment\", c.billed AS \"MTD Billed\", COALESCE(p.billed, 0) AS \"Prev Month\", CASE WHEN COALESCE(p.billed, 0) > 0 THEN ROUND(((c.billed - p.billed) / p.billed) * 100, 1) ELSE NULL END AS \"MoM Change %\" FROM cur c LEFT JOIN prev p ON c.sub_team = p.sub_team AND c.compartment_name = p.compartment_name ORDER BY c.sub_team, c.billed DESC",
+          "format": "table",
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "oci-finops-pg"
+          }
+        }
+      ],
+      "fieldConfig": {
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "MTD Billed"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "currency:financial:$"
+              },
+              {
+                "id": "decimals",
+                "value": 2
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Prev Month"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "currency:financial:$"
+              },
+              {
+                "id": "decimals",
+                "value": 2
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "MoM Change %"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "percent"
+              },
+              {
+                "id": "thresholds",
+                "value": {
+                  "steps": [
+                    {
+                      "value": null,
+                      "color": "green"
+                    },
+                    {
+                      "value": 10,
+                      "color": "yellow"
+                    },
+                    {
+                      "value": 25,
+                      "color": "red"
+                    }
+                  ]
+                }
+              },
+              {
+                "id": "custom.displayMode",
+                "value": "color-background"
+              }
+            ]
+          }
+        ]
+      }
+    }
+  ],
+  "time": {
+    "from": "now-30d",
+    "to": "now"
+  }
+}

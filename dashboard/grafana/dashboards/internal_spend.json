@@ -1,7 +1,7 @@
 {
   "uid": "oci-finops-internal-spend",
-  "title": "OCI FinOps - Other Internal Spend",
-  "description": "Internal spend by team, for every internal team except AI (see AI Team Spend)",
+  "title": "OCI FinOps - Internal Spend",
+  "description": "Internal spend by team. Team Spend shows one team's compartments and services.",
   "tags": [
     "oci",
     "finops",
@@ -35,7 +35,7 @@
         "name": "sub_team",
         "label": "Team",
         "type": "query",
-        "query": "SELECT DISTINCT sub_team FROM customer_groups WHERE group_name = 'Internal' AND sub_team NOT IN ('AI', 'Unmapped') ORDER BY sub_team",
+        "query": "SELECT DISTINCT sub_team FROM customer_groups WHERE group_name = 'Internal' AND sub_team <> 'Unmapped' ORDER BY sub_team",
         "datasource": {
           "type": "grafana-postgresql-datasource",
           "uid": "oci-finops-pg"
@@ -67,7 +67,7 @@
       },
       "targets": [
         {
-          "rawSql": "SELECT SUM(total_billed_cost) AS \"MTD Spend\" FROM mv_daily_cost_by_group WHERE group_name = 'Internal' AND sub_team NOT IN ('AI', 'Unmapped') AND cost_date >= date_trunc('month', CURRENT_DATE) AND ('\\${sub_team:raw}' = '' OR sub_team IN ($sub_team)) AND ('${tenancy:raw}' = '' OR tenancy_alias IN ($tenancy))",
+          "rawSql": "SELECT SUM(total_billed_cost) AS \"MTD Spend\" FROM mv_daily_cost_by_group WHERE group_name = 'Internal' AND sub_team <> 'Unmapped' AND cost_date >= date_trunc('month', CURRENT_DATE) AND ('\\${sub_team:raw}' = '' OR sub_team IN ($sub_team)) AND ('${tenancy:raw}' = '' OR tenancy_alias IN ($tenancy))",
           "format": "table",
           "refId": "A",
           "datasource": {
@@ -115,7 +115,7 @@
       },
       "targets": [
         {
-          "rawSql": "SELECT SUM(total_billed_cost) AS \"Previous Month\" FROM mv_daily_cost_by_group WHERE group_name = 'Internal' AND sub_team NOT IN ('AI', 'Unmapped') AND cost_date >= date_trunc('month', CURRENT_DATE) - interval '1 month' AND cost_date < date_trunc('month', CURRENT_DATE) AND ('\\${sub_team:raw}' = '' OR sub_team IN ($sub_team)) AND ('${tenancy:raw}' = '' OR tenancy_alias IN ($tenancy))",
+          "rawSql": "SELECT SUM(total_billed_cost) AS \"Previous Month\" FROM mv_daily_cost_by_group WHERE group_name = 'Internal' AND sub_team <> 'Unmapped' AND cost_date >= date_trunc('month', CURRENT_DATE) - interval '1 month' AND cost_date < date_trunc('month', CURRENT_DATE) AND ('\\${sub_team:raw}' = '' OR sub_team IN ($sub_team)) AND ('${tenancy:raw}' = '' OR tenancy_alias IN ($tenancy))",
           "format": "table",
           "refId": "A",
           "datasource": {
@@ -163,7 +163,7 @@
       },
       "targets": [
         {
-          "rawSql": "WITH cur AS ( SELECT SUM(total_billed_cost) AS spend FROM mv_daily_cost_by_group WHERE group_name = 'Internal' AND sub_team NOT IN ('AI', 'Unmapped') AND cost_date >= date_trunc('month', CURRENT_DATE) AND ('\\${sub_team:raw}' = '' OR sub_team IN ($sub_team)) AND ('${tenancy:raw}' = '' OR tenancy_alias IN ($tenancy)) ), prev AS ( SELECT SUM(total_billed_cost) AS spend FROM mv_daily_cost_by_group WHERE group_name = 'Internal' AND sub_team NOT IN ('AI', 'Unmapped') AND cost_date >= date_trunc('month', CURRENT_DATE) - interval '1 month' AND cost_date < date_trunc('month', CURRENT_DATE) AND ('\\${sub_team:raw}' = '' OR sub_team IN ($sub_team)) AND ('${tenancy:raw}' = '' OR tenancy_alias IN ($tenancy)) ) SELECT CASE WHEN prev.spend > 0 THEN ROUND(((cur.spend - prev.spend) / prev.spend) * 100, 1) ELSE NULL END AS \"MoM Change %\" FROM cur, prev",
+          "rawSql": "WITH cur AS ( SELECT SUM(total_billed_cost) AS spend FROM mv_daily_cost_by_group WHERE group_name = 'Internal' AND sub_team <> 'Unmapped' AND cost_date >= date_trunc('month', CURRENT_DATE) AND ('\\${sub_team:raw}' = '' OR sub_team IN ($sub_team)) AND ('${tenancy:raw}' = '' OR tenancy_alias IN ($tenancy)) ), prev AS ( SELECT SUM(total_billed_cost) AS spend FROM mv_daily_cost_by_group WHERE group_name = 'Internal' AND sub_team <> 'Unmapped' AND cost_date >= date_trunc('month', CURRENT_DATE) - interval '1 month' AND cost_date < date_trunc('month', CURRENT_DATE) AND ('\\${sub_team:raw}' = '' OR sub_team IN ($sub_team)) AND ('${tenancy:raw}' = '' OR tenancy_alias IN ($tenancy)) ) SELECT CASE WHEN prev.spend > 0 THEN ROUND(((cur.spend - prev.spend) / prev.spend) * 100, 1) ELSE NULL END AS \"MoM Change %\" FROM cur, prev",
           "format": "table",
           "refId": "A",
           "datasource": {
@@ -218,7 +218,7 @@
       },
       "targets": [
         {
-          "rawSql": "SELECT sub_team AS \"Team\", SUM(total_billed_cost) AS \"Billed Cost\" FROM mv_daily_cost_by_group WHERE group_name = 'Internal' AND sub_team NOT IN ('AI', 'Unmapped') AND cost_date >= date_trunc('month', CURRENT_DATE) AND ('${tenancy:raw}' = '' OR tenancy_alias IN ($tenancy)) GROUP BY sub_team ORDER BY SUM(total_billed_cost) DESC",
+          "rawSql": "SELECT sub_team AS \"Team\", SUM(total_billed_cost) AS \"Billed Cost\" FROM mv_daily_cost_by_group WHERE group_name = 'Internal' AND sub_team <> 'Unmapped' AND cost_date >= date_trunc('month', CURRENT_DATE) AND ('${tenancy:raw}' = '' OR tenancy_alias IN ($tenancy)) GROUP BY sub_team ORDER BY SUM(total_billed_cost) DESC",
           "format": "table",
           "refId": "A",
           "datasource": {
@@ -261,7 +261,7 @@
       },
       "targets": [
         {
-          "rawSql": "SELECT cost_date AS time, sub_team AS metric, SUM(total_billed_cost) AS value FROM mv_daily_cost_by_group WHERE group_name = 'Internal' AND sub_team NOT IN ('AI', 'Unmapped') AND cost_date >= CURRENT_DATE - interval '90 days' AND ('\\${sub_team:raw}' = '' OR sub_team IN ($sub_team)) AND ('${tenancy:raw}' = '' OR tenancy_alias IN ($tenancy)) GROUP BY cost_date, sub_team ORDER BY cost_date",
+          "rawSql": "SELECT cost_date AS time, sub_team AS metric, SUM(total_billed_cost) AS value FROM mv_daily_cost_by_group WHERE group_name = 'Internal' AND sub_team <> 'Unmapped' AND cost_date >= CURRENT_DATE - interval '90 days' AND ('\\${sub_team:raw}' = '' OR sub_team IN ($sub_team)) AND ('${tenancy:raw}' = '' OR tenancy_alias IN ($tenancy)) GROUP BY cost_date, sub_team ORDER BY cost_date",
           "format": "time_series",
           "refId": "A",
           "datasource": {
@@ -302,7 +302,7 @@
       },
       "targets": [
         {
-          "rawSql": "WITH cur AS ( SELECT sub_team, compartment_name, display_name, SUM(total_billed_cost) AS billed FROM mv_daily_cost_by_group WHERE group_name = 'Internal' AND sub_team NOT IN ('AI', 'Unmapped') AND cost_date >= date_trunc('month', CURRENT_DATE) AND ('\\${sub_team:raw}' = '' OR sub_team IN ($sub_team)) AND ('${tenancy:raw}' = '' OR tenancy_alias IN ($tenancy)) GROUP BY sub_team, compartment_name, display_name ), prev AS ( SELECT sub_team, compartment_name, SUM(total_billed_cost) AS billed FROM mv_daily_cost_by_group WHERE group_name = 'Internal' AND sub_team NOT IN ('AI', 'Unmapped') AND cost_date >= date_trunc('month', CURRENT_DATE) - interval '1 month' AND cost_date < date_trunc('month', CURRENT_DATE) AND ('\\${sub_team:raw}' = '' OR sub_team IN ($sub_team)) GROUP BY sub_team, compartment_name ) SELECT c.sub_team AS \"Team\", c.display_name AS \"Compartment\", c.billed AS \"MTD Billed\", COALESCE(p.billed, 0) AS \"Prev Month\", CASE WHEN COALESCE(p.billed, 0) > 0 THEN ROUND(((c.billed - p.billed) / p.billed) * 100, 1) ELSE NULL END AS \"MoM Change %\" FROM cur c LEFT JOIN prev p ON c.sub_team = p.sub_team AND c.compartment_name = p.compartment_name ORDER BY c.sub_team, c.billed DESC",
+          "rawSql": "WITH cur AS ( SELECT sub_team, compartment_name, display_name, SUM(total_billed_cost) AS billed FROM mv_daily_cost_by_group WHERE group_name = 'Internal' AND sub_team <> 'Unmapped' AND cost_date >= date_trunc('month', CURRENT_DATE) AND ('\\${sub_team:raw}' = '' OR sub_team IN ($sub_team)) AND ('${tenancy:raw}' = '' OR tenancy_alias IN ($tenancy)) GROUP BY sub_team, compartment_name, display_name ), prev AS ( SELECT sub_team, compartment_name, SUM(total_billed_cost) AS billed FROM mv_daily_cost_by_group WHERE group_name = 'Internal' AND sub_team <> 'Unmapped' AND cost_date >= date_trunc('month', CURRENT_DATE) - interval '1 month' AND cost_date < date_trunc('month', CURRENT_DATE) AND ('\\${sub_team:raw}' = '' OR sub_team IN ($sub_team)) GROUP BY sub_team, compartment_name ) SELECT c.sub_team AS \"Team\", c.display_name AS \"Compartment\", c.billed AS \"MTD Billed\", COALESCE(p.billed, 0) AS \"Prev Month\", CASE WHEN COALESCE(p.billed, 0) > 0 THEN ROUND(((c.billed - p.billed) / p.billed) * 100, 1) ELSE NULL END AS \"MoM Change %\" FROM cur c LEFT JOIN prev p ON c.sub_team = p.sub_team AND c.compartment_name = p.compartment_name ORDER BY c.sub_team, c.billed DESC",
           "format": "table",
           "refId": "A",
           "datasource": {

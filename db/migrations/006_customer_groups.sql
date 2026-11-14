@@ -22,7 +22,7 @@ CREATE MATERIALIZED VIEW IF NOT EXISTS mv_daily_cost_by_group AS
 SELECT
     date_trunc('day', r.chargeperiodstart)::date    AS cost_date,
     COALESCE(g.group_name, 'Internal')              AS group_name,
-    COALESCE(g.sub_team, 'Ops')                     AS sub_team,
+    COALESCE(g.sub_team, 'Unmapped')                AS sub_team,
     COALESCE(g.display_name, r.oci_compartmentname) AS display_name,
     r.oci_compartmentname                           AS compartment_name,
     r.servicename,

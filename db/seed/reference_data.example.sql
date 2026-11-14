@@ -31,7 +31,7 @@ ON CONFLICT (alias) DO UPDATE
 --    with sub_team NULL for external customers.
 INSERT INTO customer_groups (compartment_name, group_name, sub_team, display_name) VALUES
     ('EXAMPLE_EXTERNAL_CMP', 'Example Customer', NULL, 'Example Customer'),
-    ('EXAMPLE_INTERNAL_CMP', 'Internal',         'AI', 'AI - Example')
+    ('EXAMPLE_INTERNAL_CMP', 'Internal',         'Example Team', 'Example Team')
 ON CONFLICT (compartment_name) DO UPDATE
     SET group_name   = EXCLUDED.group_name,
         sub_team     = EXCLUDED.sub_team,

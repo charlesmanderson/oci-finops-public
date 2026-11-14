@@ -1,12 +1,12 @@
 {
-  "uid": "oci-finops-ai-team-spend",
-  "title": "OCI FinOps - AI Team Spend",
-  "description": "Internal AI team cost breakdown by compartment and service",
+  "uid": "oci-finops-team-spend",
+  "title": "OCI FinOps - Team Spend",
+  "description": "One internal team's cost by compartment and service (pick the team at the top)",
   "tags": [
     "oci",
     "finops",
     "internal",
-    "ai"
+    "team"
   ],
   "timezone": "browser",
   "editable": true,
@@ -33,10 +33,26 @@
         "allValue": ""
       },
       {
+        "name": "team",
+        "label": "Team",
+        "type": "query",
+        "query": "SELECT DISTINCT sub_team FROM customer_groups WHERE group_name = 'Internal' AND sub_team IS NOT NULL ORDER BY sub_team",
+        "datasource": {
+          "type": "grafana-postgresql-datasource",
+          "uid": "oci-finops-pg"
+        },
+        "multi": false,
+        "includeAll": false,
+        "current": {
+          "text": "",
+          "value": ""
+        }
+      },
+      {
         "name": "compartment",
         "label": "Compartment",
         "type": "query",
-        "query": "SELECT DISTINCT compartment_name FROM mv_daily_cost_by_group WHERE group_name = 'Internal' AND sub_team = 'AI' ORDER BY compartment_name",
+        "query": "SELECT DISTINCT compartment_name FROM mv_daily_cost_by_group WHERE group_name = 'Internal' AND sub_team = '${team}' ORDER BY compartment_name",
         "datasource": {
           "type": "grafana-postgresql-datasource",
           "uid": "oci-finops-pg"
@@ -53,7 +69,7 @@
         "name": "service",
         "label": "Service",
         "type": "query",
-        "query": "SELECT DISTINCT servicename FROM mv_daily_cost_by_group WHERE group_name = 'Internal' AND sub_team = 'AI' ORDER BY servicename",
+        "query": "SELECT DISTINCT servicename FROM mv_daily_cost_by_group WHERE group_name = 'Internal' AND sub_team = '${team}' ORDER BY servicename",
         "datasource": {
           "type": "grafana-postgresql-datasource",
           "uid": "oci-finops-pg"
@@ -85,7 +101,7 @@
       },
       "targets": [
         {
-          "rawSql": "SELECT SUM(total_billed_cost) AS \"MTD Spend\" FROM mv_daily_cost_by_group WHERE group_name = 'Internal' AND sub_team = 'AI' AND cost_date >= date_trunc('month', CURRENT_DATE) AND ('\\${compartment:raw}' = '' OR compartment_name IN ($compartment)) AND ('\\${service:raw}' = '' OR servicename IN ($service)) AND ('${tenancy:raw}' = '' OR tenancy_alias IN ($tenancy))",
+          "rawSql": "SELECT SUM(total_billed_cost) AS \"MTD Spend\" FROM mv_daily_cost_by_group WHERE group_name = 'Internal' AND sub_team = '${team}' AND cost_date >= date_trunc('month', CURRENT_DATE) AND ('\\${compartment:raw}' = '' OR compartment_name IN ($compartment)) AND ('\\${service:raw}' = '' OR servicename IN ($service)) AND ('${tenancy:raw}' = '' OR tenancy_alias IN ($tenancy))",
           "format": "table",
           "refId": "A",
           "datasource": {
@@ -133,7 +149,7 @@
       },
       "targets": [
         {
-          "rawSql": "SELECT SUM(total_billed_cost) AS \"Previous Month\" FROM mv_daily_cost_by_group WHERE group_name = 'Internal' AND sub_team = 'AI' AND cost_date >= date_trunc('month', CURRENT_DATE) - interval '1 month' AND cost_date < date_trunc('month', CURRENT_DATE) AND ('\\${compartment:raw}' = '' OR compartment_name IN ($compartment)) AND ('\\${service:raw}' = '' OR servicename IN ($service)) AND ('${tenancy:raw}' = '' OR tenancy_alias IN ($tenancy))",
+          "rawSql": "SELECT SUM(total_billed_cost) AS \"Previous Month\" FROM mv_daily_cost_by_group WHERE group_name = 'Internal' AND sub_team = '${team}' AND cost_date >= date_trunc('month', CURRENT_DATE) - interval '1 month' AND cost_date < date_trunc('month', CURRENT_DATE) AND ('\\${compartment:raw}' = '' OR compartment_name IN ($compartment)) AND ('\\${service:raw}' = '' OR servicename IN ($service)) AND ('${tenancy:raw}' = '' OR tenancy_alias IN ($tenancy))",
           "format": "table",
           "refId": "A",
           "datasource": {
@@ -181,7 +197,7 @@
       },
       "targets": [
         {
-          "rawSql": "WITH cur AS ( SELECT SUM(total_billed_cost) AS spend FROM mv_daily_cost_by_group WHERE group_name = 'Internal' AND sub_team = 'AI' AND cost_date >= date_trunc('month', CURRENT_DATE) AND ('\\${compartment:raw}' = '' OR compartment_name IN ($compartment)) AND ('\\${service:raw}' = '' OR servicename IN ($service)) AND ('${tenancy:raw}' = '' OR tenancy_alias IN ($tenancy)) ), prev AS ( SELECT SUM(total_billed_cost) AS spend FROM mv_daily_cost_by_group WHERE group_name = 'Internal' AND sub_team = 'AI' AND cost_date >= date_trunc('month', CURRENT_DATE) - interval '1 month' AND cost_date < date_trunc('month', CURRENT_DATE) AND ('\\${compartment:raw}' = '' OR compartment_name IN ($compartment)) AND ('\\${service:raw}' = '' OR servicename IN ($service)) AND ('${tenancy:raw}' = '' OR tenancy_alias IN ($tenancy)) ) SELECT CASE WHEN prev.spend > 0 THEN ROUND(((cur.spend - prev.spend) / prev.spend) * 100, 1) ELSE NULL END AS \"MoM Change %\" FROM cur, prev",
+          "rawSql": "WITH cur AS ( SELECT SUM(total_billed_cost) AS spend FROM mv_daily_cost_by_group WHERE group_name = 'Internal' AND sub_team = '${team}' AND cost_date >= date_trunc('month', CURRENT_DATE) AND ('\\${compartment:raw}' = '' OR compartment_name IN ($compartment)) AND ('\\${service:raw}' = '' OR servicename IN ($service)) AND ('${tenancy:raw}' = '' OR tenancy_alias IN ($tenancy)) ), prev AS ( SELECT SUM(total_billed_cost) AS spend FROM mv_daily_cost_by_group WHERE group_name = 'Internal' AND sub_team = '${team}' AND cost_date >= date_trunc('month', CURRENT_DATE) - interval '1 month' AND cost_date < date_trunc('month', CURRENT_DATE) AND ('\\${compartment:raw}' = '' OR compartment_name IN ($compartment)) AND ('\\${service:raw}' = '' OR servicename IN ($service)) AND ('${tenancy:raw}' = '' OR tenancy_alias IN ($tenancy)) ) SELECT CASE WHEN prev.spend > 0 THEN ROUND(((cur.spend - prev.spend) / prev.spend) * 100, 1) ELSE NULL END AS \"MoM Change %\" FROM cur, prev",
           "format": "table",
           "refId": "A",
           "datasource": {
@@ -236,7 +252,7 @@
       },
       "targets": [
         {
-          "rawSql": "SELECT cost_date AS time, SUM(total_billed_cost) AS \"Billed Cost\" FROM mv_daily_cost_by_group WHERE group_name = 'Internal' AND sub_team = 'AI' AND cost_date >= CURRENT_DATE - interval '90 days' AND ('\\${compartment:raw}' = '' OR compartment_name IN ($compartment)) AND ('\\${service:raw}' = '' OR servicename IN ($service)) AND ('${tenancy:raw}' = '' OR tenancy_alias IN ($tenancy)) GROUP BY cost_date ORDER BY cost_date",
+          "rawSql": "SELECT cost_date AS time, SUM(total_billed_cost) AS \"Billed Cost\" FROM mv_daily_cost_by_group WHERE group_name = 'Internal' AND sub_team = '${team}' AND cost_date >= CURRENT_DATE - interval '90 days' AND ('\\${compartment:raw}' = '' OR compartment_name IN ($compartment)) AND ('\\${service:raw}' = '' OR servicename IN ($service)) AND ('${tenancy:raw}' = '' OR tenancy_alias IN ($tenancy)) GROUP BY cost_date ORDER BY cost_date",
           "format": "time_series",
           "refId": "A",
           "datasource": {
@@ -274,7 +290,7 @@
       },
       "targets": [
         {
-          "rawSql": "SELECT to_char(date_trunc('month', cost_date), 'YYYY-MM') AS \"Month\", SUM(total_billed_cost) AS \"Billed Cost\" FROM mv_daily_cost_by_group WHERE group_name = 'Internal' AND sub_team = 'AI' AND cost_date >= CURRENT_DATE - interval '12 months' AND ('\\${compartment:raw}' = '' OR compartment_name IN ($compartment)) AND ('\\${service:raw}' = '' OR servicename IN ($service)) AND ('${tenancy:raw}' = '' OR tenancy_alias IN ($tenancy)) GROUP BY date_trunc('month', cost_date) ORDER BY date_trunc('month', cost_date)",
+          "rawSql": "SELECT to_char(date_trunc('month', cost_date), 'YYYY-MM') AS \"Month\", SUM(total_billed_cost) AS \"Billed Cost\" FROM mv_daily_cost_by_group WHERE group_name = 'Internal' AND sub_team = '${team}' AND cost_date >= CURRENT_DATE - interval '12 months' AND ('\\${compartment:raw}' = '' OR compartment_name IN ($compartment)) AND ('\\${service:raw}' = '' OR servicename IN ($service)) AND ('${tenancy:raw}' = '' OR tenancy_alias IN ($tenancy)) GROUP BY date_trunc('month', cost_date) ORDER BY date_trunc('month', cost_date)",
           "format": "table",
           "refId": "A",
           "datasource": {
@@ -310,7 +326,7 @@
       },
       "targets": [
         {
-          "rawSql": "SELECT display_name AS \"Compartment\", SUM(total_billed_cost) AS \"Billed Cost\" FROM mv_daily_cost_by_group WHERE group_name = 'Internal' AND sub_team = 'AI' AND cost_date >= date_trunc('month', CURRENT_DATE) AND ('${tenancy:raw}' = '' OR tenancy_alias IN ($tenancy)) GROUP BY display_name ORDER BY SUM(total_billed_cost) DESC",
+          "rawSql": "SELECT display_name AS \"Compartment\", SUM(total_billed_cost) AS \"Billed Cost\" FROM mv_daily_cost_by_group WHERE group_name = 'Internal' AND sub_team = '${team}' AND cost_date >= date_trunc('month', CURRENT_DATE) AND ('${tenancy:raw}' = '' OR tenancy_alias IN ($tenancy)) GROUP BY display_name ORDER BY SUM(total_billed_cost) DESC",
           "format": "table",
           "refId": "A",
           "datasource": {
@@ -345,7 +361,7 @@
       },
       "targets": [
         {
-          "rawSql": "SELECT cost_date AS time, display_name AS metric, SUM(total_billed_cost) AS value FROM mv_daily_cost_by_group WHERE group_name = 'Internal' AND sub_team = 'AI' AND cost_date >= CURRENT_DATE - interval '90 days' AND ('\\${service:raw}' = '' OR servicename IN ($service)) AND ('${tenancy:raw}' = '' OR tenancy_alias IN ($tenancy)) GROUP BY cost_date, display_name ORDER BY cost_date",
+          "rawSql": "SELECT cost_date AS time, display_name AS metric, SUM(total_billed_cost) AS value FROM mv_daily_cost_by_group WHERE group_name = 'Internal' AND sub_team = '${team}' AND cost_date >= CURRENT_DATE - interval '90 days' AND ('\\${service:raw}' = '' OR servicename IN ($service)) AND ('${tenancy:raw}' = '' OR tenancy_alias IN ($tenancy)) GROUP BY cost_date, display_name ORDER BY cost_date",
           "format": "time_series",
           "refId": "A",
           "datasource": {
@@ -386,7 +402,7 @@
       },
       "targets": [
         {
-          "rawSql": "SELECT servicename AS \"Service\", SUM(total_billed_cost) AS \"Billed Cost\" FROM mv_daily_cost_by_group WHERE group_name = 'Internal' AND sub_team = 'AI' AND cost_date >= date_trunc('month', CURRENT_DATE) AND ('\\${compartment:raw}' = '' OR compartment_name IN ($compartment)) AND ('${tenancy:raw}' = '' OR tenancy_alias IN ($tenancy)) GROUP BY servicename ORDER BY SUM(total_billed_cost) DESC LIMIT 10",
+          "rawSql": "SELECT servicename AS \"Service\", SUM(total_billed_cost) AS \"Billed Cost\" FROM mv_daily_cost_by_group WHERE group_name = 'Internal' AND sub_team = '${team}' AND cost_date >= date_trunc('month', CURRENT_DATE) AND ('\\${compartment:raw}' = '' OR compartment_name IN ($compartment)) AND ('${tenancy:raw}' = '' OR tenancy_alias IN ($tenancy)) GROUP BY servicename ORDER BY SUM(total_billed_cost) DESC LIMIT 10",
           "format": "table",
           "refId": "A",
           "datasource": {
@@ -421,7 +437,7 @@
       },
       "targets": [
         {
-          "rawSql": "SELECT display_name AS \"Compartment\", servicename AS \"Service\", SUM(total_billed_cost) AS \"Billed Cost\", SUM(total_effective_cost) AS \"Effective Cost\", SUM(line_item_count) AS \"Line Items\" FROM mv_daily_cost_by_group WHERE group_name = 'Internal' AND sub_team = 'AI' AND cost_date >= date_trunc('month', CURRENT_DATE) AND ('\\${compartment:raw}' = '' OR compartment_name IN ($compartment)) AND ('\\${service:raw}' = '' OR servicename IN ($service)) AND ('${tenancy:raw}' = '' OR tenancy_alias IN ($tenancy)) GROUP BY display_name, servicename ORDER BY SUM(total_billed_cost) DESC",
+          "rawSql": "SELECT display_name AS \"Compartment\", servicename AS \"Service\", SUM(total_billed_cost) AS \"Billed Cost\", SUM(total_effective_cost) AS \"Effective Cost\", SUM(line_item_count) AS \"Line Items\" FROM mv_daily_cost_by_group WHERE group_name = 'Internal' AND sub_team = '${team}' AND cost_date >= date_trunc('month', CURRENT_DATE) AND ('\\${compartment:raw}' = '' OR compartment_name IN ($compartment)) AND ('\\${service:raw}' = '' OR servicename IN ($service)) AND ('${tenancy:raw}' = '' OR tenancy_alias IN ($tenancy)) GROUP BY display_name, servicename ORDER BY SUM(total_billed_cost) DESC",
           "format": "table",
           "refId": "A",
           "datasource": {
